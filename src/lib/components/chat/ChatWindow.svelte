@@ -13,7 +13,6 @@
 	import ChatInput from "./ChatInput.svelte";
 	import StopGeneratingBtn from "../StopGeneratingBtn.svelte";
 	import type { Model } from "$lib/types/Model";
-	import type { LayoutData } from "../../../routes/$types";
 	import WebSearchToggle from "../WebSearchToggle.svelte";
 	import LoginModal from "../LoginModal.svelte";
 	import type { WebSearchUpdate } from "$lib/types/MessageUpdate";
@@ -23,6 +22,7 @@
 	import RetryBtn from "../RetryBtn.svelte";
 	import UploadBtn from "../UploadBtn.svelte";
 	import file2base64 from "$lib/utils/file2base64";
+	import { useSettingsStore } from "$lib/stores/settings";
 
 	export let messages: Message[] = [];
 	export let loading = false;
@@ -30,7 +30,6 @@
 	export let shared = false;
 	export let currentModel: Model;
 	export let models: Model[];
-	export let settings: LayoutData["settings"];
 	export let webSearchMessages: WebSearchUpdate[] = [];
 	export let preprompt: string | undefined = undefined;
 	export let files: File[] = [];
@@ -72,14 +71,15 @@
 	$: lastIsError = messages[messages.length - 1]?.from === "user" && !loading;
 
 	$: sources = files.map((file) => file2base64(file));
+
+	const settings = useSettingsStore();
 </script>
 
 <div class="relative min-h-0 min-w-0">
-	{#if !settings.ethicsModalAcceptedAt}
-		<DisclaimerModal {settings} />
+	{#if !$settings.ethicsModalAccepted}
+		<DisclaimerModal />
 	{:else if loginModalOpen}
 		<LoginModal
-			{settings}
 			on:close={() => {
 				loginModalOpen = false;
 			}}
@@ -88,7 +88,6 @@
 	<ChatMessages
 		{loading}
 		{pending}
-		{settings}
 		{currentModel}
 		{models}
 		{messages}
@@ -110,36 +109,36 @@
 	/>
 
 	<div
-		class="pointer-events-none absolute inset-x-0 bottom-0 z-0 mx-auto flex w-full max-w-3xl flex-col items-center justify-center md:px-5 md:py-8 xl:max-w-4xl [&>*]:pointer-events-auto"
+		class="dark:via-gray-80 pointer-events-none absolute inset-x-0 bottom-0 z-0 mx-auto flex w-full max-w-3xl flex-col items-center justify-center bg-gradient-to-t from-white via-white/80 to-white/0 px-3.5 py-4 dark:border-gray-800 dark:from-gray-900 dark:to-gray-900/0 max-md:border-t max-md:bg-white max-md:dark:bg-gray-900 sm:px-5 md:py-8 xl:max-w-4xl [&>*]:pointer-events-auto"
 	>
-		<div class="flex flex-row flex-wrap justify-center gap-2.5 max-md:pb-3">
-			{#each sources as source, index}
-				{#await source then src}
-					<div class="relative h-24 w-24 overflow-hidden rounded-lg shadow-lg">
-						<img
-							src={`data:image/*;base64,${src}`}
-							alt="input content"
-							class="h-full w-full rounded-lg bg-gray-400 object-cover dark:bg-gray-900"
-						/>
-						<!-- add a button on top that deletes this image from sources -->
-						<button
-							class="absolute left-1 top-1"
-							on:click={() => {
-								files = files.filter((_, i) => i !== index);
-							}}
-						>
-							<CarbonClose class="text-md font-black text-gray-300  hover:text-gray-100" />
-						</button>
-					</div>
-				{/await}
-			{/each}
-		</div>
+		{#if sources.length}
+			<div class="flex flex-row flex-wrap justify-center gap-2.5 max-md:pb-3">
+				{#each sources as source, index}
+					{#await source then src}
+						<div class="relative h-16 w-16 overflow-hidden rounded-lg shadow-lg">
+							<img
+								src={`data:image/*;base64,${src}`}
+								alt="input content"
+								class="h-full w-full rounded-lg bg-gray-400 object-cover dark:bg-gray-900"
+							/>
+							<!-- add a button on top that deletes this image from sources -->
+							<button
+								class="absolute left-1 top-1"
+								on:click={() => {
+									files = files.filter((_, i) => i !== index);
+								}}
+							>
+								<CarbonClose class="text-md font-black text-gray-300  hover:text-gray-100" />
+							</button>
+						</div>
+					{/await}
+				{/each}
+			</div>
+		{/if}
 
-		<div
-			class="dark:via-gray-80 w-full bg-gradient-to-t from-white via-white/80 to-white/0 dark:border-gray-800 dark:from-gray-900 dark:to-gray-900/0 max-md:border-t max-md:bg-white max-md:px-4 max-md:dark:bg-gray-900"
-		>
-			<div class="flex w-full pb-3 max-md:pt-3">
-				{#if settings?.searchEnabled}
+		<div class="w-full">
+			<div class="flex w-full pb-3">
+				{#if $page.data.settings?.searchEnabled}
 					<WebSearchToggle />
 				{/if}
 				{#if loading}
@@ -184,7 +183,7 @@
 										loginModalOpen = true;
 									}
 								}}
-								maxRows={4}
+								maxRows={6}
 								disabled={isReadOnly || lastIsError}
 							/>
 						{/if}

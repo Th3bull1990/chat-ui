@@ -1,4 +1,3 @@
-import { redirect } from "@sveltejs/kit";
 import type { LayoutServerLoad } from "./$types";
 import { collections } from "$lib/server/database";
 import type { Conversation } from "$lib/types/Conversation";
@@ -14,30 +13,25 @@ import {
 	USE_LOCAL_WEBSEARCH,
 } from "$env/static/private";
 
-export const load: LayoutServerLoad = async ({ locals, depends, url }) => {
+export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	const { conversations } = collections;
-	const urlModel = url.searchParams.get("model");
-
 	depends(UrlDependency.ConversationList);
-
-	if (urlModel) {
-		const isValidModel = validateModel(models).safeParse(urlModel).success;
-
-		if (isValidModel) {
-			await collections.settings.updateOne(
-				authCondition(locals),
-				{ $set: { activeModel: urlModel } },
-				{ upsert: true }
-			);
-		}
-
-		throw redirect(302, url.pathname);
-	}
 
 	const settings = await collections.settings.findOne(authCondition(locals));
 
 	// If the active model in settings is not valid, set it to the default model. This can happen if model was disabled.
 	if (settings && !validateModel(models).safeParse(settings?.activeModel).success) {
+		settings.activeModel = defaultModel.id;
+		await collections.settings.updateOne(authCondition(locals), {
+			$set: { activeModel: defaultModel.id },
+		});
+	}
+
+	// if the model is unlisted, set the active model to the default model
+	if (
+		settings?.activeModel &&
+		models.find((m) => m.id === settings?.activeModel)?.unlisted === true
+	) {
 		settings.activeModel = defaultModel.id;
 		await collections.settings.updateOne(authCondition(locals), {
 			$set: { activeModel: defaultModel.id },
@@ -79,16 +73,18 @@ export const load: LayoutServerLoad = async ({ locals, depends, url }) => {
 				id: conv._id.toString(),
 				title: settings?.hideEmojiOnSidebar ? conv.title.replace(/\p{Emoji}/gu, "") : conv.title,
 				model: conv.model ?? defaultModel,
+				updatedAt: conv.updatedAt,
 			}))
 			.toArray(),
 		settings: {
-			shareConversationsWithModelAuthors:
-				settings?.shareConversationsWithModelAuthors ??
-				DEFAULT_SETTINGS.shareConversationsWithModelAuthors,
+			searchEnabled: !!(SERPAPI_KEY || SERPER_API_KEY || YDC_API_KEY || USE_LOCAL_WEBSEARCH),
+			ethicsModalAccepted: !!settings?.ethicsModalAcceptedAt,
 			ethicsModalAcceptedAt: settings?.ethicsModalAcceptedAt ?? null,
 			activeModel: settings?.activeModel ?? DEFAULT_SETTINGS.activeModel,
 			hideEmojiOnSidebar: settings?.hideEmojiOnSidebar ?? false,
-			searchEnabled: !!(SERPAPI_KEY || SERPER_API_KEY || YDC_API_KEY || USE_LOCAL_WEBSEARCH),
+			shareConversationsWithModelAuthors:
+				settings?.shareConversationsWithModelAuthors ??
+				DEFAULT_SETTINGS.shareConversationsWithModelAuthors,
 			customPrompts: settings?.customPrompts ?? {},
 		},
 		models: models.map((model) => ({
@@ -104,6 +100,7 @@ export const load: LayoutServerLoad = async ({ locals, depends, url }) => {
 			parameters: model.parameters,
 			preprompt: model.preprompt,
 			multimodal: model.multimodal,
+			unlisted: model.unlisted,
 		})),
 		oldModels,
 		user: locals.user && {

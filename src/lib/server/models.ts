@@ -1,4 +1,11 @@
-import { HF_ACCESS_TOKEN, HF_API_ROOT, MODELS, OLD_MODELS, TASK_MODEL } from "$env/static/private";
+import {
+	HF_TOKEN,
+	HF_API_ROOT,
+	MODELS,
+	OLD_MODELS,
+	TASK_MODEL,
+	HF_ACCESS_TOKEN,
+} from "$env/static/private";
 import type { ChatTemplateInput } from "$lib/types/Template";
 import { compileTemplate } from "$lib/utils/template";
 import { z } from "zod";
@@ -58,6 +65,7 @@ const modelConfig = z.object({
 		.passthrough()
 		.optional(),
 	multimodal: z.boolean().default(false),
+	unlisted: z.boolean().default(false),
 });
 
 const modelsRaw = z.array(modelConfig).parse(JSON.parse(MODELS));
@@ -80,7 +88,7 @@ const addEndpoint = (m: Awaited<ReturnType<typeof processModel>>) => ({
 			return endpointTgi({
 				type: "tgi",
 				url: `${HF_API_ROOT}/${m.name}`,
-				accessToken: HF_ACCESS_TOKEN,
+				accessToken: HF_TOKEN ?? HF_ACCESS_TOKEN,
 				weight: 1,
 				model: m,
 			});
@@ -149,4 +157,7 @@ export const smallModel = TASK_MODEL
 	  defaultModel
 	: defaultModel;
 
-export type BackendModel = Optional<typeof defaultModel, "preprompt" | "parameters" | "multimodal">;
+export type BackendModel = Optional<
+	typeof defaultModel,
+	"preprompt" | "parameters" | "multimodal" | "unlisted"
+>;
