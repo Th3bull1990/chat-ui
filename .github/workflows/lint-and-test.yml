@@ -43,14 +43,15 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: |
-          npm ci
+          npm ci --silent
       - name: "Tests"
         run: |
-          npm run test
+          npm run test --silent
   build-check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
       - name: Build Docker image
-        run: docker build --secret id=DOTENV_LOCAL,src=.env.ci -t chat-ui:latest .
+        run: |
+          docker build --secret id=DOTENV_LOCAL,src=.env.ci -t chat-ui:latest . --build-arg NODE_VERSION=20
